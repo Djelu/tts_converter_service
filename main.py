@@ -1,14 +1,13 @@
-import kivy
-from tts_converter import TtsConverter
-
 from kivy.app import App
-from kivy.uix.pagelayout import PageLayout
+from kivy.config import Config
+from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
+from kivy.uix.pagelayout import PageLayout
 from kivy.utils import get_color_from_hex
-from kivy.core.window import Window
 
-from kivy.config import Config
+from tts_converter import TtsConverter
+
 Config.set("graphics", "width", "420")
 Config.set("graphics", "height", "720")
 

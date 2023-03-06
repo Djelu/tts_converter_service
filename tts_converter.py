@@ -18,11 +18,11 @@ class TtsConverter:
     VOICE = VOICE_MALE
     VOICE_RATE = "+100%"
     VOICE_VOLUME = "+0%"
-    BOOKS = []
     DIR_BOOKS = "Books"
     DIR_AUDIOBOOKS = "AudioBooks"
     DIR_AUDIOBOOKS_FULL = "AudioBooks Full"
     SAVE_AUDIOBOOKS_FULL = False
+    TEXT = None
 
     def __init__(self,
                  _BUFFER_SIZE=20,
@@ -34,7 +34,8 @@ class TtsConverter:
                  _DIR_BOOKS="Books",
                  _DIR_AUDIOBOOKS="AudioBooks",
                  _DIR_AUDIOBOOKS_FULL="AudioBooks Full",
-                 _SAVE_AUDIOBOOKS_FULL=False
+                 _SAVE_AUDIOBOOKS_FULL=False,
+                 _TEXT=None
                  ):
         self.BUFFER_SIZE = _BUFFER_SIZE
         self.FIRST_STRINGS_LENGTH = _FIRST_STRINGS_LENGTH
@@ -54,31 +55,38 @@ class TtsConverter:
     def get_books(self):
         # Получение списка книг для конвертации
         all_files = os.listdir(self.DIR_BOOKS)
-        self.BOOKS = []
+        books = []
         for file in all_files:
             filename, file_extension = os.path.splitext(file)
             if file_extension == ".txt":
-                self.BOOKS.append(filename)
-        print(self.BOOKS)
+                books.append(filename)
+        print(books)
+        return books
 
     async def foo(self):
-        self.get_books()
+        if self.TEXT is not None:
+            return await self.do_it_with_text(self.TEXT)
 
-        for book in self.BOOKS:
+        for book in self.get_books():
             print("Начала работы над книгой: " + book)
+
             text = self.get_text(book)
+            all_mp3_parts = await self.do_it_with_text(text, book)
 
-            # Добавление строкам, недостающих точек
-            pre_sentences = self.get_fix_points(text)
-
-            # Формирование отрезков текста, с учетом размера отрезка и знаков припинания
-            all_sentences = self.get_fix_section(pre_sentences)
-
-            array_of_sentences = self.get_splited_sentences(all_sentences)
-            all_mp3_parts = await self.run_it_with_buffer(book, array_of_sentences)
             if self.SAVE_AUDIOBOOKS_FULL:
                 self.write_to_file(book, all_mp3_parts)
             print("Конец работы над книгой: " + book)
+        return None
+
+    async def do_it_with_text(self, text, book=None):
+        # Добавление строкам, недостающих точек
+        pre_sentences = self.get_fix_points(text)
+
+        # Формирование отрезков текста, с учетом размера отрезка и знаков препинания
+        all_sentences = self.get_fix_section(pre_sentences)
+
+        array_of_sentences = self.get_splited_sentences(all_sentences)
+        return await self.run_it_with_buffer(book, array_of_sentences)
 
     def get_fix_points(self, text):
         result = []
@@ -89,12 +97,11 @@ class TtsConverter:
                 result.append(str(points + "."))
         return result
 
-    def get_size(self, r):
-        if r:
-            result = self.LAST_STRINGS_LENGTH
+    def get_size(self, is_empty_list):
+        if not is_empty_list:
+            return self.FIRST_STRINGS_LENGTH
         else:
-            result = self.FIRST_STRINGS_LENGTH
-        return result
+            return self.LAST_STRINGS_LENGTH
 
     def get_fix_section(self, sentences):
         result = []
@@ -109,6 +116,22 @@ class TtsConverter:
                     if len(current_text) > 0:
                         current_text += " "
                     current_text += word
+            if len(current_text) > 0:
+                current_text += "\n"
+        if len(current_text) > 0:
+            result.append(current_text)
+        return result
+
+    def get_fix_section_v2(self, sentences):
+        result = []
+        current_text = ""
+
+        for line in sentences:
+            for word in line.split():
+                if len(f"{current_text} {word}") > self.get_size(result) and word[-1] in self.PUNCTUATION_MARKS:
+                    result.append(current_text)
+                    current_text = ""
+                current_text = f"{current_text} {word}"
             if len(current_text) > 0:
                 current_text += "\n"
         if len(current_text) > 0:
@@ -149,11 +172,12 @@ class TtsConverter:
                 bytes_io.write(chunk["data"])
         audio_bytes = bytes_io.getvalue()
 
-        if not os.path.exists(f"{self.DIR_AUDIOBOOKS}/{book_name}"): os.makedirs(f"{self.DIR_AUDIOBOOKS}/{book_name}")
-        with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.mp3", "wb") as f:
-            f.write(audio_bytes)
-        with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.txt", "wb") as f:
-            f.write(text.encode("utf-8"))
+        if self.TEXT is None:
+            if not os.path.exists(f"{self.DIR_AUDIOBOOKS}/{book_name}"): os.makedirs(f"{self.DIR_AUDIOBOOKS}/{book_name}")
+            with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.mp3", "wb") as f:
+                f.write(audio_bytes)
+            with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.txt", "wb") as f:
+                f.write(text.encode("utf-8"))
         print(f"th{index + 1} completed")
         return {index: audio_bytes}
 
