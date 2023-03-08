@@ -47,6 +47,7 @@ class TtsConverter:
         self.DIR_AUDIOBOOKS = _DIR_AUDIOBOOKS
         self.DIR_AUDIOBOOKS_FULL = _DIR_AUDIOBOOKS_FULL
         self.SAVE_AUDIOBOOKS_FULL = _SAVE_AUDIOBOOKS_FULL
+        self.TEXT = _TEXT
 
         if not os.path.exists(self.DIR_BOOKS): os.makedirs(self.DIR_BOOKS)
         if not os.path.exists(self.DIR_AUDIOBOOKS): os.makedirs(self.DIR_AUDIOBOOKS)
@@ -195,3 +196,7 @@ class TtsConverter:
 
     def convert(self):
         return asyncio.run(self.foo())
+
+
+if __name__ == '__main__':
+    TtsConverter(_TEXT="Прелюдия к преступлению").convert()
