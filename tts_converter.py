@@ -24,6 +24,9 @@ class TtsConverter:
     SAVE_AUDIOBOOKS_FULL = False
     TEXT = None
 
+    LOG_INTO_VAR = False
+    LOG = ""
+
     def __init__(self,
                  _BUFFER_SIZE=20,
                  _FIRST_STRINGS_LENGTH=800,
@@ -35,7 +38,8 @@ class TtsConverter:
                  _DIR_AUDIOBOOKS="AudioBooks",
                  _DIR_AUDIOBOOKS_FULL="AudioBooks Full",
                  _SAVE_AUDIOBOOKS_FULL=False,
-                 _TEXT=None
+                 _TEXT=None,
+                 _LOG_INTO_VAR=False
                  ):
         self.BUFFER_SIZE = _BUFFER_SIZE
         self.FIRST_STRINGS_LENGTH = _FIRST_STRINGS_LENGTH
@@ -48,10 +52,30 @@ class TtsConverter:
         self.DIR_AUDIOBOOKS_FULL = _DIR_AUDIOBOOKS_FULL
         self.SAVE_AUDIOBOOKS_FULL = _SAVE_AUDIOBOOKS_FULL
         self.TEXT = _TEXT
+        self.LOG_INTO_VAR = _LOG_INTO_VAR
+        self.prepare_dirs()
 
+    def prepare_dirs(self):
         if not os.path.exists(self.DIR_BOOKS): os.makedirs(self.DIR_BOOKS)
         if not os.path.exists(self.DIR_AUDIOBOOKS): os.makedirs(self.DIR_AUDIOBOOKS)
         if not os.path.exists(self.DIR_AUDIOBOOKS_FULL): os.makedirs(self.DIR_AUDIOBOOKS_FULL)
+
+    def init_it(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k[1:], v)
+        self.prepare_dirs()
+        return self
+
+    def log_into_var_turn_on(self):
+        # self.LOG = log_var
+        self.LOG_INTO_VAR = True
+        return self
+
+    def log(self, string):
+        if self.LOG_INTO_VAR:
+            self.LOG = f"{self.LOG}\n{string}"
+        else:
+            self.log(string)
 
     def get_books(self):
         # Получение списка книг для конвертации
@@ -61,7 +85,7 @@ class TtsConverter:
             filename, file_extension = os.path.splitext(file)
             if file_extension == ".txt":
                 books.append(filename)
-        print(books)
+        self.log(books)
         return books
 
     async def foo(self):
@@ -69,14 +93,14 @@ class TtsConverter:
             return await self.do_it_with_text(self.TEXT)
 
         for book in self.get_books():
-            print("Начала работы над книгой: " + book)
+            self.log("Начала работы над книгой: " + book)
 
             text = self.get_text(book)
             all_mp3_parts = await self.do_it_with_text(text, book)
 
             if self.SAVE_AUDIOBOOKS_FULL:
                 self.write_to_file(book, all_mp3_parts)
-            print("Конец работы над книгой: " + book)
+            self.log("Конец работы над книгой: " + book)
         return None
 
     async def do_it_with_text(self, text, book=None):
@@ -152,8 +176,8 @@ class TtsConverter:
             end_time = time.time()
             execution_time = end_time - start_time
             sum_time = sum_time + execution_time
-            print(f"{buffer_index + 1}/{len(sentences)} completed by {execution_time}")
-        print(f"all converted by {sum_time}")
+            self.log(f"{buffer_index + 1}/{len(sentences)} completed by {execution_time}")
+        self.log(f"all converted by {sum_time}")
         return result
 
     def get_splited_sentences(self, sentences):
@@ -164,7 +188,7 @@ class TtsConverter:
         return await asyncio.gather(*tasks)
 
     async def tts_one(self, book_name, index, sentences):
-        print(f"th{index + 1} started")
+        self.log(f"th{index + 1} started")
         text = sentences
         communicate = edge_tts.Communicate(text, self.VOICE, rate=self.VOICE_RATE, volume=self.VOICE_VOLUME)
         bytes_io = io.BytesIO()
@@ -179,7 +203,7 @@ class TtsConverter:
                 f.write(audio_bytes)
             with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.txt", "wb") as f:
                 f.write(text.encode("utf-8"))
-        print(f"th{index + 1} completed")
+        self.log(f"th{index + 1} completed")
         return {index: audio_bytes}
 
     def write_to_file(self, book_name, mp3_parts):
