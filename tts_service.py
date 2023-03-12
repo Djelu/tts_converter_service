@@ -41,6 +41,17 @@ def get_status():
     return response
 
 
+@app.route('/test1', methods=['GET'])
+@cross_origin()
+def test1():
+    return "test 111"
+
+
+@app.route('/test2', methods=['GET'])
+def test2():
+    return "test 222"
+
+
 def get_value(data, name):
     if name not in data:
         return None
@@ -74,4 +85,3 @@ def get_mp3_part(index, element):
 
 if __name__ == '__main__':
     app.run(debug=True)
-    # web.run_app(app)
