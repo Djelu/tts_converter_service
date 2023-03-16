@@ -5,11 +5,9 @@ metadata:
 spec:
   containers:
   - name: tts-converter-container
-    image: localhost:5000/djelu/tts_converter_service:latest
+    image: djelu/tts_converter_service:latest
     ports:
     - containerPort: 5000
-#  imagePullSecrets:
-#  - name: dockerhub-secret
 ---
 apiVersion: v1
 kind: Service

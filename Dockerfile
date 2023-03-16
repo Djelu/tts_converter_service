@@ -1,5 +1,9 @@
-FROM python:3.9-alpine
-COPY . /app
+FROM python:3.9
+
+RUN mkdir /app
 WORKDIR /app
+ADD . /app
 RUN pip install -r requirements.txt
-CMD ["python", "tts_service.py"]
+
+EXPOSE 5000
+CMD ["python", "/app/tts_service.py", "-p", "5000:5000"]
