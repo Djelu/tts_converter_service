@@ -13,8 +13,18 @@ converter = TtsConverter()
 received_data = {}
 
 
+def normal_value(val):
+    if isinstance(val, list):
+        return val[0]
+    return val
+
+
 def get_params(req):
-    return parse_qs(urlparse(f"{req.base_url}?{req.query_string.decode('utf-8')}").query)
+    result = {}
+    data = parse_qs(urlparse(f"{req.base_url}?{req.query_string.decode('utf-8')}").query)
+    for key, value in data.items():
+        result[key] = normal_value(value)
+    return result
 
 
 def add_received_data(chunk_index, total_chunks, sending_id, data):
@@ -24,7 +34,7 @@ def add_received_data(chunk_index, total_chunks, sending_id, data):
     #     received_data[sending_id][file_name] = {}
     if "total" not in received_data[sending_id]:
         received_data[sending_id]["total"] = total_chunks
-    received_data[sending_id][chunk_index] = data
+    received_data[sending_id][int(chunk_index)] = data
 
 
 def get_right_value(params, name):
@@ -57,8 +67,12 @@ def set_right_value(data, params, name):
 
 
 def get_book_text(chunks):
-    chunks = list(chunks)[1:]
-    book_parts = [item for i, item in chunks]
+    # chunks = list(chunks)[1:]
+    book_parts = []
+    # result_data = dict(item for dict_ in chunks for item in dict_.items())
+    for i in range(0, len(chunks.items()) - 1):
+        book_parts.append(chunks[i])
+    # book_parts = [item for i, item in chunks]
     return b"".join(book_parts).decode("utf-8")
 
 
@@ -95,12 +109,11 @@ def tts_convert():
     sending_id = get_right_value(params, "id")
     add_received_data(chunk_index, total_chunks, sending_id, request.data)
 
-    chunks = received_data[sending_id].items()
     # Если все части ещё не получены
-    if len(chunks)-1 != int(received_data[sending_id]["total"]):
+    if len(received_data[sending_id].items()) - 1 != int(received_data[sending_id]["total"]):
         return get_right_response()
 
-    book_text = get_book_text(chunks)
+    book_text = get_book_text(received_data[sending_id])
     data = get_params_data(params)
     data = {**data, **{"_TEXT": book_text, "_LOG_INTO_VAR": True, "_LOG": ""}}
 
@@ -147,12 +160,28 @@ def test2():
 
 
 def get_value(data, name):
-    if name not in data:
+    # comparisons = {
+    #     "bSize": "_BUFFER_SIZE",
+    #     "f": "_FIRST_STRINGS_LENGTH",
+    #     "l": "_LAST_STRINGS_LENGTH",
+    #     "v": "_VOICE",
+    #     "vR": "_VOICE_RATE",
+    #     "vV": "_VOICE_VOLUME"
+    # }
+    comparisons = {
+        "_BUFFER_SIZE": 'bSize',
+        "_FIRST_STRINGS_LENGTH": 'f',
+        "_LAST_STRINGS_LENGTH": 'l',
+        "_VOICE": 'v',
+        "_VOICE_RATE": 'vR',
+        "_VOICE_VOLUME": 'vV'
+    }
+    if name not in comparisons or comparisons[name] not in data:
         return None
     if name in ["_BUFFER_SIZE", "_FIRST_STRINGS_LENGTH", "_LAST_STRINGS_LENGTH"]:
-        return int(data.get(name))
+        return int(data[comparisons[name]])
     if name in ["_VOICE", "_VOICE_RATE", "_VOICE_VOLUME"]:
-        return data.get(name)
+        return data[comparisons[name]]
 
 
 def get_params_data(data):
