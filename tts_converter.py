@@ -22,10 +22,12 @@ class TtsConverter:
     DIR_AUDIOBOOKS = "AudioBooks"
     DIR_AUDIOBOOKS_FULL = "AudioBooks Full"
     SAVE_AUDIOBOOKS_FULL = False
-    TEXT = None
 
+    TEXT = None
     LOG_INTO_VAR = False
     LOG = ""
+    SET_PROGRESS = None
+    REPEAT_SENDING_TOTAL = 100
 
     def __init__(self,
                  _BUFFER_SIZE=20,
@@ -37,9 +39,7 @@ class TtsConverter:
                  _DIR_BOOKS="Books",
                  _DIR_AUDIOBOOKS="AudioBooks",
                  _DIR_AUDIOBOOKS_FULL="AudioBooks Full",
-                 _SAVE_AUDIOBOOKS_FULL=False,
-                 _TEXT=None,
-                 _LOG_INTO_VAR=False
+                 _SAVE_AUDIOBOOKS_FULL=False
                  ):
         self.BUFFER_SIZE = _BUFFER_SIZE
         self.FIRST_STRINGS_LENGTH = _FIRST_STRINGS_LENGTH
@@ -51,8 +51,6 @@ class TtsConverter:
         self.DIR_AUDIOBOOKS = _DIR_AUDIOBOOKS
         self.DIR_AUDIOBOOKS_FULL = _DIR_AUDIOBOOKS_FULL
         self.SAVE_AUDIOBOOKS_FULL = _SAVE_AUDIOBOOKS_FULL
-        self.TEXT = _TEXT
-        self.LOG_INTO_VAR = _LOG_INTO_VAR
         self.prepare_dirs()
 
     def prepare_dirs(self):
@@ -67,15 +65,16 @@ class TtsConverter:
         return self
 
     def log_into_var_turn_on(self):
-        # self.LOG = log_var
         self.LOG_INTO_VAR = True
         return self
 
-    def log(self, string):
+    def log(self, string, repeat_num=None):
+        if repeat_num is not None:
+            string = f"[{repeat_num}] {string}"
         if self.LOG_INTO_VAR:
             self.LOG = f"{self.LOG}\n{string}"
         else:
-            self.log(string)
+            print(string)
 
     def get_books(self):
         # Получение списка книг для конвертации
@@ -166,6 +165,7 @@ class TtsConverter:
     async def run_it_with_buffer(self, book_name, sentences):
         result = []
         sum_time = 0
+        total_sentences = len(sentences)
         for buffer_index, buffered_sentences in enumerate(sentences):
             start_time = time.time()
 
@@ -173,10 +173,13 @@ class TtsConverter:
             mp3_parts = await self.tts_all(book_name, buffered_sentences, ext_num)
             result.append(mp3_parts)
 
+            if self.SET_PROGRESS is not None:
+                self.SET_PROGRESS(total_sentences, buffer_index)
+
             end_time = time.time()
             execution_time = end_time - start_time
             sum_time = sum_time + execution_time
-            self.log(f"{buffer_index + 1}/{len(sentences)} completed by {execution_time}")
+            self.log(f"{buffer_index + 1}/{total_sentences} completed by {execution_time}")
         self.log(f"all converted by {sum_time}")
         return result
 
@@ -188,22 +191,26 @@ class TtsConverter:
         return await asyncio.gather(*tasks)
 
     async def tts_one(self, book_name, index, sentences):
-        self.log(f"th{index + 1} started")
-        text = sentences
-        communicate = edge_tts.Communicate(text, self.VOICE, rate=self.VOICE_RATE, volume=self.VOICE_VOLUME)
-        bytes_io = io.BytesIO()
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                bytes_io.write(chunk["data"])
-        audio_bytes = bytes_io.getvalue()
+        for repeat_num in range(0, self.REPEAT_SENDING_TOTAL):
+            self.log(f"th{index + 1} started", repeat_num)
+            try:
+                communicate = edge_tts.Communicate(sentences, self.VOICE, rate=self.VOICE_RATE, volume=self.VOICE_VOLUME)
+                bytes_io = io.BytesIO()
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        bytes_io.write(chunk["data"])
+                audio_bytes = bytes_io.getvalue()
+                break
+            except Exception as err:
+                self.log(f"th{index + 1} error={err}", repeat_num)
 
         if self.TEXT is None:
             if not os.path.exists(f"{self.DIR_AUDIOBOOKS}/{book_name}"): os.makedirs(f"{self.DIR_AUDIOBOOKS}/{book_name}")
             with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.mp3", "wb") as f:
                 f.write(audio_bytes)
             with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.txt", "wb") as f:
-                f.write(text.encode("utf-8"))
-        self.log(f"th{index + 1} completed")
+                f.write(sentences.encode("utf-8"))
+        self.log(f"th{index + 1} completed", repeat_num)
         return {index: audio_bytes}
 
     def write_to_file(self, book_name, mp3_parts):

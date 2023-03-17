@@ -1,7 +1,7 @@
 import itertools
 from urllib.parse import urlparse, parse_qs, unquote
 
-from flask import Flask, request, make_response
+from flask import Flask, request, make_response, jsonify
 from flask_cors import CORS, cross_origin
 from tts_converter import TtsConverter
 
@@ -27,7 +27,11 @@ def get_params(req):
     return result
 
 
-def add_received_data(chunk_index, total_chunks, sending_id, data):
+def clear_received_data(sending_id):
+    del received_data[sending_id]
+
+
+def add_received_data(sending_id, total_chunks, chunk_index, data):
     if sending_id not in received_data:
         received_data[sending_id] = {}
     # if file_name not in received_data[sending_id]:
@@ -35,13 +39,15 @@ def add_received_data(chunk_index, total_chunks, sending_id, data):
     if "total" not in received_data[sending_id]:
         received_data[sending_id]["total"] = total_chunks
     received_data[sending_id][int(chunk_index)] = data
+    if "progress" not in received_data[sending_id]:
+        received_data[sending_id]["progress"] = 0
 
 
 def get_right_value(params, name):
     # if name in ["fileName", "totalChunks", "sendingId", "chunkIndex"]:
     if name in ["bSize", "f", "l"]:
-        return int(params[name][0])
-    return params[name][0]
+        return int(params[name])
+    return params[name]
     # if name == "chunkIndex":
     #     result = params[name][0]
     #     while len(result) < 5:
@@ -69,9 +75,27 @@ def set_right_value(data, params, name):
 def get_book_text(chunks):
     # chunks = list(chunks)[1:]
     book_parts = []
+    # book_parts = [{k: v} for k, v in chunks.items()]
+    # book_parts = list(filter(lambda part: list(part.keys())[0] not in ['total', 'progress'], book_parts))
+    # book_parts = sorted(book_parts, key=lambda x: list(x.values())[0])
+
+    book_parts = {k: v for k, v in chunks.items() if k not in ['total', 'progress']}
+    book_parts = [part[1]
+                  for part in sorted(book_parts.items(), key=lambda x: x[0])
+                  if part[0] not in ['total', 'progress']]
+
+    # book_parts = [(k, v) for k, v in chunks.items() if k not in ['total', 'progress']]
+    # book_parts = list(map(lambda x: x[1], sorted(book_parts, key=lambda x: x[0])))
+
+    # book_parts = sorted(list(chunks.items()), key=lambda x: list(x.keys())[0])
     # result_data = dict(item for dict_ in chunks for item in dict_.items())
-    for i in range(0, len(chunks.items()) - 1):
-        book_parts.append(chunks[i])
+    # index = 0
+    # try:
+    #     for i in range(0, len(chunks.items()) - 1):
+    #         index = i
+    #         book_parts.append(chunks[i])
+    # except Exception as e:
+    #     i = 0
     # book_parts = [item for i, item in chunks]
     return b"".join(book_parts).decode("utf-8")
 
@@ -100,51 +124,67 @@ def get_right_response(mp3_bytes=None, book_name=None):
     return response
 
 
+def set_current_progress(sending_id, total, index):
+    if index + 1 != total:
+        received_data[sending_id]["progress"] = int(100 / total * (index + 1))
+    else:
+        received_data[sending_id]["progress"] = 100
+
+
 @app.route('/tts_convert', methods=['POST'])
 @cross_origin()
 def tts_convert():
     params = get_params(request)
-    chunk_index = get_right_value(params, "idx")
-    total_chunks = get_right_value(params, "total")
     sending_id = get_right_value(params, "id")
-    add_received_data(chunk_index, total_chunks, sending_id, request.data)
+    total_chunks = get_right_value(params, "total")
+    chunk_index = get_right_value(params, "idx")
+    add_received_data(sending_id, total_chunks, chunk_index, request.data)
 
+    print(f"{len(received_data[sending_id]) - 2} / {int(received_data[sending_id]['total'])}")
     # Если все части ещё не получены
-    if len(received_data[sending_id].items()) - 1 != int(received_data[sending_id]["total"]):
+    if len(received_data[sending_id]) - 2 != int(received_data[sending_id]["total"]):
         return get_right_response()
 
     book_text = get_book_text(received_data[sending_id])
-    data = get_params_data(params)
-    data = {**data, **{"_TEXT": book_text, "_LOG_INTO_VAR": True, "_LOG": ""}}
+    data = {
+        **get_params_data(params),
+        **{
+            "_TEXT": book_text,
+            "_LOG_INTO_VAR": True,
+            "_SET_PROGRESS": lambda total, index: set_current_progress(sending_id, total, index)
+        }
+    }
 
-    i = 0
-    # book = request.files['file']
-    # text = book.read().decode("utf-8")
-    #
-    # data = request.form
-    # data = {**get_data(data), **{"_TEXT": text, "_LOG_INTO_VAR": True, "_LOG": ""}}
-    #
     result = converter.init_it(**data).convert()
     result = list(itertools.chain.from_iterable(result))
 
     mp3_parts = [get_part(i, item) for i, item in enumerate(result)]
     mp3_bytes = b"".join(mp3_parts)
 
-    # response = make_response(mp3_bytes)
-    # response.status_code = 200
-    # response.headers.set('Content-Type', 'audio/mpeg')
-    # response.headers.set('Content-Disposition', 'attachment', filename=)
-    # {book.filename.split(".")[0]}
     response = get_right_response(mp3_bytes, f'book.mp3')
+    clear_received_data(sending_id)
+    converter.LOG = ""
     return response
 
 
 @app.route('/status', methods=['GET'])
 @cross_origin()
 def get_status():
-    response = make_response(converter.LOG)
+    params = get_params(request)
+    sending_id = get_right_value(params, "id")
+    if sending_id not in received_data:
+        response = jsonify({
+            "progress": -1,
+            "log": converter.LOG
+        })
+        response.status_code = 300
+        return response
+
+    response = jsonify({
+        "progress": received_data[sending_id]["progress"],
+        "log": converter.LOG
+    })
     response.status_code = 200
-    response.headers['Content-Type'] = 'text/plain'
     return response
 
 
@@ -160,14 +200,6 @@ def test2():
 
 
 def get_value(data, name):
-    # comparisons = {
-    #     "bSize": "_BUFFER_SIZE",
-    #     "f": "_FIRST_STRINGS_LENGTH",
-    #     "l": "_LAST_STRINGS_LENGTH",
-    #     "v": "_VOICE",
-    #     "vR": "_VOICE_RATE",
-    #     "vV": "_VOICE_VOLUME"
-    # }
     comparisons = {
         "_BUFFER_SIZE": 'bSize',
         "_FIRST_STRINGS_LENGTH": 'f',
