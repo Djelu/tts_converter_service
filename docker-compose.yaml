@@ -4,3 +4,4 @@ services:
     image: djelu/tts_converter_service
     ports:
       - "5005:5000"
+      -
