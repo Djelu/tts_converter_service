@@ -34,4 +34,7 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          script: docker-compose -f ${secrets.SERVER_PROJECT_PATH}/docker-compose.yaml up &
+          script: |
+            cd /home/user1/services/tts_converter_service
+            git pull
+            docker-compose -f /home/user1/services/tts_converter_service/docker-compose.yaml up &
