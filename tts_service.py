@@ -1,6 +1,6 @@
 import itertools
+from fb2ToTxt import get_text_from_fb2_content
 from urllib.parse import urlparse, parse_qs, unquote
-
 from flask import Flask, request, make_response, jsonify
 from flask_cors import CORS, cross_origin
 from tts_converter import TtsConverter
@@ -44,15 +44,9 @@ def add_received_data(sending_id, total_chunks, chunk_index, data):
 
 
 def get_right_value(params, name):
-    # if name in ["fileName", "totalChunks", "sendingId", "chunkIndex"]:
     if name in ["bSize", "f", "l"]:
         return int(params[name])
     return params[name]
-    # if name == "chunkIndex":
-    #     result = params[name][0]
-    #     while len(result) < 5:
-    #         result = '0' + result
-    #     return result
 
 
 def set_right_value(data, params, name):
@@ -72,31 +66,18 @@ def set_right_value(data, params, name):
     data[comparisons[name]] = val
 
 
-def get_book_text(chunks):
-    # chunks = list(chunks)[1:]
-    book_parts = []
-    # book_parts = [{k: v} for k, v in chunks.items()]
-    # book_parts = list(filter(lambda part: list(part.keys())[0] not in ['total', 'progress'], book_parts))
-    # book_parts = sorted(book_parts, key=lambda x: list(x.values())[0])
+def prepare_book_text(text, ext):
+    if ext is None or ext == "txt":
+        return text
+    elif ext == "fb2":
+        return get_text_from_fb2_content(text)
 
+
+def get_book_text(chunks):
     book_parts = {k: v for k, v in chunks.items() if k not in ['total', 'progress']}
     book_parts = [part[1]
                   for part in sorted(book_parts.items(), key=lambda x: x[0])
                   if part[0] not in ['total', 'progress']]
-
-    # book_parts = [(k, v) for k, v in chunks.items() if k not in ['total', 'progress']]
-    # book_parts = list(map(lambda x: x[1], sorted(book_parts, key=lambda x: x[0])))
-
-    # book_parts = sorted(list(chunks.items()), key=lambda x: list(x.keys())[0])
-    # result_data = dict(item for dict_ in chunks for item in dict_.items())
-    # index = 0
-    # try:
-    #     for i in range(0, len(chunks.items()) - 1):
-    #         index = i
-    #         book_parts.append(chunks[i])
-    # except Exception as e:
-    #     i = 0
-    # book_parts = [item for i, item in chunks]
     return b"".join(book_parts).decode("utf-8")
 
 
@@ -146,6 +127,8 @@ def tts_convert():
         return get_right_response()
 
     book_text = get_book_text(received_data[sending_id])
+    book_ext = get_right_value(params, "ext")
+
     data = {
         **get_params_data(params),
         **{

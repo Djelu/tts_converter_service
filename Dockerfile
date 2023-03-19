@@ -1,4 +1,5 @@
 FROM python:3.9
+RUN apk update && apk add git
 
 RUN mkdir /app
 WORKDIR /app

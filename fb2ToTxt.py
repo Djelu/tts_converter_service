@@ -6,9 +6,9 @@ from bs4 import BeautifulSoup
 def cut_name(file_name):
     match = re.search(r'\d', file_name)
     if match:
-        return add_ext(file_name[:match.start()])
+        return file_name[:match.start()]
     else:
-        return add_ext(file_name[:34])
+        return file_name[:34]
 
 
 def add_ext(file_name):
@@ -45,5 +45,5 @@ def get_text_from_fb2_content(fb2_content):
 if __name__ == '__main__':
     convert_fb2s_to_txt(
         is_single_file_result=True,
-        input_dir="C:\\Users\\Djelu\\Downloads\\Goncharova_Srednevekovaya-istoriya_1_Pervye-uroki.L5hnew.372915.fb2\\"
+        input_dir="C:\\Users\\Djelu\\Downloads\\Compressed\\Barchuk_Kolhoz-_1_Kolhoz-Nazad-v-SSSR.eOROyQ.710513.fb2\\"
     )
