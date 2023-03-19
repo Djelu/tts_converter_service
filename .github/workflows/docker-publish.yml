@@ -34,7 +34,4 @@ jobs:
           username: ${{ secrets.SERVER_USERNAME }}
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
-          script: |
-            docker-compose -f ${secrets.SERVER_PROJECT_PATH}/docker-compose.yaml up &
-            cd ${secrets.SERVER_PROJECT_PATH}
-            git pull
+          script: docker-compose -f ${secrets.SERVER_PROJECT_PATH}/docker-compose.yaml up &
