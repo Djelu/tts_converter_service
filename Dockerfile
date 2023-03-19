@@ -1,4 +1,4 @@
-FROM python:3.9
+FROM python:3-alpine
 RUN apk update && apk add git
 
 RUN mkdir /app
