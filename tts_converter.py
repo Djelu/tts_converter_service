@@ -227,7 +227,3 @@ class TtsConverter:
 
     def convert(self):
         return asyncio.run(self.foo())
-
-
-if __name__ == '__main__':
-    TtsConverter(_TEXT="Прелюдия к преступлению").convert()

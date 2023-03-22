@@ -28,7 +28,9 @@ def get_params(req):
 
 
 def clear_received_data(sending_id):
-    del received_data[sending_id]
+    total = received_data[sending_id]["total"]
+    progress = received_data[sending_id]["progress"]
+    received_data[sending_id] = {"total": total, "progress": progress}
 
 
 def add_received_data(sending_id, total_chunks, chunk_index, data):
@@ -68,17 +70,17 @@ def set_right_value(data, params, name):
 
 def prepare_book_text(text, ext):
     if ext is None or ext == "txt":
-        return text
+        return text.decode("utf-8")
     elif ext == "fb2":
         return get_text_from_fb2_content(text)
 
 
-def get_book_text(chunks):
+def get_book_text(chunks, ext="txt"):
     book_parts = {k: v for k, v in chunks.items() if k not in ['total', 'progress']}
     book_parts = [part[1]
                   for part in sorted(book_parts.items(), key=lambda x: x[0])
                   if part[0] not in ['total', 'progress']]
-    return b"".join(book_parts).decode("utf-8")
+    return prepare_book_text(b"".join(book_parts), ext)
 
 
 def get_data(params):
@@ -126,14 +128,14 @@ def tts_convert():
     if len(received_data[sending_id]) - 2 != int(received_data[sending_id]["total"]):
         return get_right_response()
 
-    book_text = get_book_text(received_data[sending_id])
     book_ext = get_right_value(params, "ext")
+    book_text = get_book_text(received_data[sending_id], book_ext)
 
     data = {
         **get_params_data(params),
         **{
             "_TEXT": book_text,
-            "_LOG_INTO_VAR": True,
+            "_LOG_INTO_VAR": False,
             "_SET_PROGRESS": lambda total, index: set_current_progress(sending_id, total, index)
         }
     }
