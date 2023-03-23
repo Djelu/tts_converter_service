@@ -22,6 +22,7 @@ jobs:
         uses: mr-smithers-excellent/docker-build-push@v5
         with:
           image: djelu/tts_converter_service
+          tags: latest
           registry: docker.io
           dockerfile: Dockerfile
           username: ${{ secrets.DOCKER_USERNAME }}
