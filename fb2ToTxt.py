@@ -1,4 +1,6 @@
+import os
 import re
+import shutil
 from pathlib import Path
 from bs4 import BeautifulSoup
 
@@ -35,19 +37,35 @@ def convert_fb2s_to_txt(input_dir, is_single_file_result=False):
             write_text_to_file(file_path, file["text"])
 
 
-def divide_file(file_path, file_name):
-    file_path = Path(file_path)
-    with open(file_path / file_name, 'r', encoding='utf-8') as f:
-        data = f.read()
-        part_length = len(data) // 1000
-        for i in range(1000):
-            # with open(file_path / f'{file_name[:-4]}_{i}.txt', 'w') as out_file:
-            with open(file_path / f'zest_{i}.txt', 'w') as out_file:
-                start = i * part_length
-                end = start + part_length
-                if i == 9:
-                    end = len(data)
-                out_file.write(data[start:end])
+def split_file(filename, parts):
+    # проверяем существование файла
+    if not os.path.isfile(filename):
+        print("Файл не найден!")
+        return
+
+    # читаем файл
+    with open(filename, 'r', encoding='utf-8') as file:
+        text = file.read()
+
+    # вычисляем количество символов на каждую часть
+    chars_per_part = len(text) // parts
+
+    # получаем базовое имя файла и его расширение
+    base_filename, extension = os.path.splitext(filename)
+
+    start = 0
+    for i in range(parts):
+        # ищем конец слова для каждой части
+        end = start + chars_per_part
+        while end < len(text) and text[end] not in (' ', '\n'):
+            end += 1
+
+        # создаем имя нового файла с сохранением оригинального расширения
+        part_filename = f"{base_filename}_part_{i + 1}{extension}"
+        with open(part_filename, 'w', encoding='utf-8') as part_file:
+            part_file.write(text[start:end])
+
+        start = end
 
 
 def write_text_to_file(file_path, text):
@@ -61,12 +79,30 @@ def get_text_from_fb2_content(fb2_content):
     return text
 
 
+def make_folders_for_mp3s(directory_path):
+    for filename in os.listdir(directory_path):
+        if filename.endswith('.mp3'):
+            full_file_path = os.path.join(directory_path, filename)
+            new_directory_path = os.path.join(directory_path, cut_folder_name(os.path.splitext(filename)[0]))
+            os.makedirs(new_directory_path, exist_ok=True)
+            shutil.move(full_file_path, new_directory_path+"\\"+filename)
+
+
+def cut_folder_name(folder_name):
+    if len(folder_name) > 25:
+        return folder_name[0:24]
+    return folder_name
+
+
 if __name__ == '__main__':
     # convert_fb2s_to_txt(
-    #     is_single_file_result=False,
-    #     input_dir="C:\\Users\\Djelu\\Downloads\\Perkins_Novaya-ispoved-ekonomicheskogo-ubiycy.-k45yw.437259.fb2\\"
+    #     is_single_file_result=True,
+    #     input_dir="C:\\Users\\Djelu\\Downloads\\Lastochkin_Lisa-v-kuryatnike-_1_Zazhigaya-zvezdy.N8h-VQ.770318.fb2\\"
     # )
-    divide_file(
-        file_path="C:\\Users\\Djelu\\Downloads\\Perkins_Novaya-ispoved-ekonomicheskogo-ubiycy.-k45yw.437259.fb2\\",
-        file_name="Perkins_Ispoved-ekonomicheskogo-ubiycy.si7G_w.173053.txt"
+    # split_file(
+    #     filename="C:\\Users\\Djelu\\Downloads\\Serdce-drakona\\Serdce-drakona.txt",
+    #     parts=5
+    # )
+    make_folders_for_mp3s(
+        "C:\\Users\\Djelu\\Downloads\\Alteya_Middle_172907"
     )

@@ -29,6 +29,10 @@ class TtsConverter:
     SET_PROGRESS = None
     REPEAT_SENDING_TOTAL = 100
 
+    BUFFER_INDEX_COUNT = 0
+    BUFFER_INDEX_ALL = 0
+    THREADS_ALL = 0
+
     def __init__(self,
                  _BUFFER_SIZE=20,
                  _FIRST_STRINGS_LENGTH=800,
@@ -166,9 +170,12 @@ class TtsConverter:
         result = []
         sum_time = 0
         total_sentences = len(sentences)
+        self.THREADS_ALL = sum(len(sub_array) for sub_array in sentences)
         for buffer_index, buffered_sentences in enumerate(sentences):
             start_time = time.time()
 
+            self.BUFFER_INDEX_COUNT = 0
+            self.BUFFER_INDEX_ALL = len(buffered_sentences)
             ext_num = buffer_index * self.BUFFER_SIZE
             mp3_parts = await self.tts_all(book_name, buffered_sentences, ext_num)
             result.append(mp3_parts)
@@ -191,8 +198,9 @@ class TtsConverter:
         return await asyncio.gather(*tasks)
 
     async def tts_one(self, book_name, index, sentences):
+        th_id = f"th{index + 1}/{self.THREADS_ALL}"
         for repeat_num in range(0, self.REPEAT_SENDING_TOTAL):
-            self.log(f"th{index + 1} started", repeat_num)
+            self.log(th_id+" started", repeat_num)
             try:
                 communicate = edge_tts.Communicate(sentences, self.VOICE, rate=self.VOICE_RATE, volume=self.VOICE_VOLUME)
                 bytes_io = io.BytesIO()
@@ -202,7 +210,7 @@ class TtsConverter:
                 audio_bytes = bytes_io.getvalue()
                 break
             except Exception as err:
-                self.log(f"th{index + 1} error={err}", repeat_num)
+                self.log(f"{th_id} error={err}", repeat_num)
 
         if self.TEXT is None:
             if not os.path.exists(f"{self.DIR_AUDIOBOOKS}/{book_name}"): os.makedirs(f"{self.DIR_AUDIOBOOKS}/{book_name}")
@@ -210,7 +218,8 @@ class TtsConverter:
                 f.write(audio_bytes)
             with open(f"{self.DIR_AUDIOBOOKS}/{book_name}/{book_name}_{index + 1}.txt", "wb") as f:
                 f.write(sentences.encode("utf-8"))
-        self.log(f"th{index + 1} completed", repeat_num)
+        self.BUFFER_INDEX_COUNT = self.BUFFER_INDEX_COUNT + 1
+        self.log(f"{th_id}  {self.BUFFER_INDEX_COUNT}/{self.BUFFER_INDEX_ALL} completed", repeat_num)
         return {index: audio_bytes}
 
     def write_to_file(self, book_name, mp3_parts):

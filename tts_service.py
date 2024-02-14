@@ -1,4 +1,7 @@
 import itertools
+import json
+import os
+import base64
 from fb2ToTxt import get_text_from_fb2_content
 from urllib.parse import urlparse, parse_qs, unquote
 from flask import Flask, request, make_response, jsonify
@@ -121,6 +124,26 @@ def tts_convert():
     sending_id = get_right_value(params, "id")
     total_chunks = get_right_value(params, "total")
     chunk_index = get_right_value(params, "idx")
+
+    folder = './tmp/' + sending_id
+    if not os.path.exists(folder):
+        try:
+            os.makedirs(folder)
+        except Exception as ex:
+            None
+
+    rrr = {
+        "id": sending_id,
+        "total": total_chunks,
+        "idx": chunk_index,
+        "data": base64.b64encode(request.data).decode('utf-8'),
+    }
+    # открыть файл для записи в формате JSON
+    with open(folder + '/chunk_request_' + chunk_index + '.json', 'w') as f:
+        json.dump(rrr, f)
+    # with open('./tmp/'+sending_id+'/chunk_params_'+chunk_index+'.json', 'w') as f:
+    #     json.dump(params, f)
+
     add_received_data(sending_id, total_chunks, chunk_index, request.data)
 
     print(f"{len(received_data[sending_id]) - 2} / {int(received_data[sending_id]['total'])}")
@@ -150,6 +173,63 @@ def tts_convert():
     clear_received_data(sending_id)
     converter.LOG = ""
     return response
+
+
+def test():
+    def file_to_chunks(file_path):
+        chunks = {}
+        chunk_size = 10000  # Размер каждого чанка в байтах
+        with open(file_path, 'rb') as file:
+            chunk_number = 0
+            while True:
+                chunk = file.read(chunk_size)
+                if not chunk:
+                    break  # Если больше нет данных, прерываем цикл
+                # Ключи для словаря формируются как строковые представления чисел,
+                # чтобы соответствовать логике сортировки в get_book_text
+                chunks[str(chunk_number)] = chunk
+                chunk_number += 1
+        return chunks
+
+    file_path = 'C:\\Users\\Djelu\\Downloads\\65cb7be07b41e\\rrr.txt'  # Замените на путь к вашему файлу
+    chunks = file_to_chunks(file_path)
+
+    book_text = get_book_text(chunks, "txt")
+    params = {
+        'idx': '108',
+        'total': '147',
+        'id': '1707927240302',
+        'bSize': '20',
+        'f': '800',
+        'l': '4200',
+        'v': 'ru-RU-SvetlanaNeural',
+        'vR': '+100%',
+        'ext': 'txt'
+    }
+
+    data = {
+        **get_params_data(params),
+        **{
+            "_TEXT": book_text,
+            "_LOG_INTO_VAR": False,
+            # "_SET_PROGRESS": lambda total, index: set_current_progress(sending_id, total, index)
+        }
+    }
+
+    result = converter.init_it(**data).convert()
+    result = list(itertools.chain.from_iterable(result))
+
+    mp3_parts = [get_part(i, item) for i, item in enumerate(result)]
+    mp3_bytes = b"".join(mp3_parts)
+
+    file_name = '.\\my_audio_file.mp3'
+
+    # Сохраняем байты в файл
+    with open(file_name, 'wb') as file:
+        file.write(mp3_bytes)
+
+    # Выводим путь к файлу, чтобы вы могли его найти
+    print(f"Файл сохранен как: {file_name}")
 
 
 @app.route('/status', methods=['GET'])
@@ -225,3 +305,4 @@ def get_part(index, element):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0')
+    # test()
