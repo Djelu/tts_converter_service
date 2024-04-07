@@ -2,6 +2,8 @@ import itertools
 import json
 import os
 import base64
+
+import fb2ToTxt
 from fb2ToTxt import get_text_from_fb2_content
 from urllib.parse import urlparse, parse_qs, unquote
 from flask import Flask, request, make_response, jsonify
@@ -73,7 +75,7 @@ def set_right_value(data, params, name):
 
 def prepare_book_text(text, ext):
     if ext is None or ext == "txt":
-        return text.decode("utf-8")
+        return text.decode("utf-8", errors='ignore')
     elif ext == "fb2":
         return get_text_from_fb2_content(text)
 
@@ -175,11 +177,11 @@ def tts_convert():
     return response
 
 
-def test():
-    def file_to_chunks(file_path):
+def test(file_path):
+    def file_to_chunks(f_path):
         chunks = {}
         chunk_size = 10000  # Размер каждого чанка в байтах
-        with open(file_path, 'rb') as file:
+        with open(f_path, 'rb') as file:
             chunk_number = 0
             while True:
                 chunk = file.read(chunk_size)
@@ -191,7 +193,6 @@ def test():
                 chunk_number += 1
         return chunks
 
-    file_path = 'C:\\Users\\Djelu\\Downloads\\65cb7be07b41e\\rrr.txt'  # Замените на путь к вашему файлу
     chunks = file_to_chunks(file_path)
 
     book_text = get_book_text(chunks, "txt")
@@ -222,7 +223,7 @@ def test():
     mp3_parts = [get_part(i, item) for i, item in enumerate(result)]
     mp3_bytes = b"".join(mp3_parts)
 
-    file_name = '.\\my_audio_file.mp3'
+    file_name = file_path[:-4]+'.mp3'
 
     # Сохраняем байты в файл
     with open(file_name, 'wb') as file:
@@ -304,5 +305,6 @@ def get_part(index, element):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
     # test()
+    test('C:\\Users\\Djelu\\Downloads\\6610c99898fc7\\vershina_boevyih_iskusstv_part_2.txt')
+    fb2ToTxt.make_folders_for_mp3s(

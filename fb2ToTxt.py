@@ -82,10 +82,13 @@ def get_text_from_fb2_content(fb2_content):
 def make_folders_for_mp3s(directory_path):
     for filename in os.listdir(directory_path):
         if filename.endswith('.mp3'):
-            full_file_path = os.path.join(directory_path, filename)
-            new_directory_path = os.path.join(directory_path, cut_folder_name(os.path.splitext(filename)[0]))
-            os.makedirs(new_directory_path, exist_ok=True)
-            shutil.move(full_file_path, new_directory_path+"\\"+filename)
+            match = re.match(r'(.+?)(_part_\d+)?\.mp3', filename)
+            if match:
+                base_name = match.group(1)
+                full_file_path = os.path.join(directory_path, filename)
+                new_directory_path = os.path.join(directory_path, base_name)
+                os.makedirs(new_directory_path, exist_ok=True)
+                shutil.move(full_file_path, os.path.join(new_directory_path, filename))
 
 
 def cut_folder_name(folder_name):
